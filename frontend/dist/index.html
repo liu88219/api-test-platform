@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PulseAPI — API 自動化測試與場景編排平台</title>
+  <meta name="description" content="Production-grade Automated API Testing, Multi-Step Scenario Orchestration, JSONPath Variable Chaining, and QA Failure Triage Platform." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Navigation & Global Quality Gate Bar -->
+    <header class="topbar">
+      <div class="brand-group">
+        <div class="brand-logo" aria-hidden="true">⚡</div>
+        <div>
+          <h1 class="brand-title">PulseAPI <span class="brand-sub">QA Automation &amp; Scenario Engine</span></h1>
+          <p class="brand-caption">Python (FastAPI) + React 多步驟 API 自動化驗證、變數傳遞與根因診斷平台</p>
+        </div>
+      </div>
+
+      <div class="topbar-controls">
+        <div class="chaos-control-box" id="chaos-box">
+          <label for="chaos-select" class="chaos-label">🎯 靶機故障模擬 (Chaos Injection):</label>
+          <select id="chaos-select" class="chaos-select" aria-label="Target API Chaos Mode">
+            <option value="none">🟢 正常運作 (All Healthy)</option>
+            <option value="pricing_bug">💥 注入金額計算 Bug (結帳多扣 $500)</option>
+            <option value="server_500_bug">💥 注入微服務崩潰 (Checkout HTTP 500)</option>
+          </select>
+        </div>
+
+        <button id="btn-run-all" class="btn btn-primary" type="button">
+          ▶ 全量回歸驗證 (Run All Suites)
+        </button>
+      </div>
+    </header>
+
+    <!-- KPI Metrics Strip -->
+    <section class="metrics-strip" aria-label="Quality Gate Metrics">
+      <div class="metric-card">
+        <span class="metric-label">測試場景總數 (Scenarios)</span>
+        <div class="metric-value-row">
+          <strong class="metric-value" id="kpi-scenarios">3</strong>
+          <span class="metric-sub" id="kpi-steps">9 API Steps</span>
+        </div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">歷史執行通過率 (Pass Rate)</span>
+        <div class="metric-value-row">
+          <strong class="metric-value metric-pass" id="kpi-pass-rate">100%</strong>
+          <span class="metric-sub" id="kpi-runs-summary">0 / 0 Runs</span>
+        </div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">平均端到端耗時 (Avg Latency)</span>
+        <div class="metric-value-row">
+          <strong class="metric-value" id="kpi-latency">0.0 ms</strong>
+          <span class="metric-sub">SLO Threshold &lt; 500ms</span>
+        </div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">目前靶機狀態 (Target Health)</span>
+        <div class="metric-value-row">
+          <strong class="metric-value status-indicator" id="kpi-chaos-status">Healthy</strong>
+          <span class="metric-sub" id="kpi-chaos-desc">內建電商 API 正常</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="workspace-tabs" aria-label="Workspace Sections">
+      <button class="tab-btn active" id="tab-btn-studio" data-tab="studio" type="button">
+        1. 測試場景編排與執行 (Scenario Studio)
+      </button>
+      <button class="tab-btn" id="tab-btn-inspector" data-tab="inspector" type="button">
+        2. 執行報告與斷言追蹤 (Live Trace &amp; Report)
+      </button>
+      <button class="tab-btn" id="tab-btn-environments" data-tab="environments" type="button">
+        3. 測試環境與變數配置 (Target Environments)
+      </button>
+    </nav>
+
+    <!-- Main Workspace Content -->
+    <main class="workspace-main">
+      <!-- TAB 1: SCENARIO STUDIO -->
+      <section id="panel-studio" class="tab-panel active">
+        <div class="studio-grid">
+          <!-- Left Sidebar: Scenario List -->
+          <aside class="scenario-sidebar">
+            <div class="sidebar-header">
+              <h2>API 測試場景列表</h2>
+              <button id="btn-new-scenario" class="btn btn-secondary btn-sm" type="button">
+                + 新增測試場景
+              </button>
+            </div>
+            <div id="scenario-list" class="scenario-list"></div>
+          </aside>
+
+          <!-- Right Detail: Multi-Step Pipeline & Runner -->
+          <div class="scenario-detail-pane">
+            <div id="scenario-detail-content"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: EXECUTION REPORT & TRACE INSPECTOR -->
+      <section id="panel-inspector" class="tab-panel">
+        <div class="inspector-grid">
+          <aside class="runs-history-sidebar">
+            <div class="sidebar-header">
+              <h2>執行紀錄 (Run History)</h2>
+              <button id="btn-refresh-runs" class="btn btn-ghost btn-sm" type="button">↻ 重新整理</button>
+            </div>
+            <div id="runs-history-list" class="runs-list"></div>
+          </aside>
+
+          <div class="run-report-pane">
+            <div id="run-report-content"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: ENVIRONMENTS & GLOBAL VARIABLES -->
+      <section id="panel-environments" class="tab-panel">
+        <div class="env-container">
+          <div class="env-header-row">
+            <div>
+              <h2>測試目標環境與全域變數 (Environments)</h2>
+              <p class="text-muted">可將 Base URL 指向任何真實後端服務（例如 <code>http://localhost:3000</code>、公司測試站或公開 API），平台會發送真實 HTTP 請求進行驗證。</p>
+            </div>
+            <button id="btn-new-env" class="btn btn-secondary" type="button">+ 新增測試環境</button>
+          </div>
+          <div id="environments-list" class="env-cards-grid"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal: Create / Edit Custom API Scenario -->
+  <div id="scenario-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="modal-title">新增 / 編輯 API 自動化測試場景</h2>
+        <button id="btn-close-modal" class="btn-icon" type="button" aria-label="Close modal">✕</button>
+      </div>
+      <form id="scenario-form" class="modal-body">
+        <input type="hidden" id="form-scenario-id" />
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="form-scenario-name">場景名稱 (Scenario Name)</label>
+            <input id="form-scenario-name" type="text" required placeholder="例如：會員註冊與資料查詢鏈路" />
+          </div>
+          <div class="form-group">
+            <label for="form-scenario-env">綁定目標環境 (Target Environment)</label>
+            <select id="form-scenario-env"></select>
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="form-scenario-desc">測試目標描述</label>
+            <input id="form-scenario-desc" type="text" placeholder="描述此自動化場景驗證的商業邏輯與邊界條件" />
+          </div>
+          <div class="form-group">
+            <label for="form-scenario-tags">標籤 (以逗號分隔)</label>
+            <input id="form-scenario-tags" type="text" placeholder="E2E, Smoke, P0" value="API, Custom" />
+          </div>
+        </div>
+
+        <div class="steps-builder-header">
+          <h3>API 測試步驟編排 (Steps JSON 定義)</h3>
+          <button id="btn-load-sample-steps" class="btn btn-ghost btn-sm" type="button">載入公開 API 範例 (JSONPlaceholder)</button>
+        </div>
+        <p class="form-hint">支援在 Path、Headers、Body 使用 <code>{{var_name}}</code>，並透過 <code>extractions</code> 提取 JSONPath 傳遞給下一步。</p>
+        <textarea id="form-scenario-steps" rows="13" class="code-textarea" spellcheck="false"></textarea>
+
+        <div class="modal-footer">
+          <button id="btn-cancel-modal" class="btn btn-ghost" type="button">取消</button>
+          <button class="btn btn-primary" type="submit">💾 儲存測試場景</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

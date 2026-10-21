@@ -1,0 +1,27 @@
+name: PulseAPI Quality Gate & Engine CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: "0 2 * * *"
+
+jobs:
+  verify-platform-and-api-suites:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Core Engine Unit & Integration Tests
+        run: python3 -m unittest discover -s backend/tests -v
+
+      - name: Execute Automated API Regression Scenarios (Quality Gate)
+        run: python3 backend/cli_runner.py

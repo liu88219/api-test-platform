@@ -1,12 +1,18 @@
-name: PulseAPI Quality Gate & Engine CI
+name: PulseAPI Quality Gate & Daily Report Ledger
 
 on:
   push:
     branches: [main, master]
+    paths-ignore:
+      - "reports/DAILY_TEST_LEDGER.md"
   pull_request:
     branches: [main, master]
   schedule:
     - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   verify-platform-and-api-suites:
@@ -23,5 +29,17 @@ jobs:
       - name: Run Core Engine Unit & Integration Tests
         run: python3 -m unittest discover -s backend/tests -v
 
-      - name: Execute Automated API Regression Scenarios (Quality Gate)
-        run: python3 backend/cli_runner.py
+      - name: Execute All 8 Automated API Scenarios & Generate Report
+        run: |
+          python3 backend/cli_runner.py \
+            --report-md "$GITHUB_STEP_SUMMARY" \
+            --update-ledger reports/DAILY_TEST_LEDGER.md
+
+      - name: Archive Periodic Test Ledger to Repository
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/DAILY_TEST_LEDGER.md
+          git diff --staged --quiet || git commit -m "chore(qa-report): update daily automated test ledger [skip ci]"
+          git push

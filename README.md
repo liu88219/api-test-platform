@@ -3,7 +3,9 @@
 [![PulseAPI Quality Gate CI](https://github.com/liu88219/api-test-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/liu88219/api-test-platform/actions/workflows/ci.yml)
 [![Deploy Live Portfolio to GitHub Pages](https://github.com/liu88219/api-test-platform/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/liu88219/api-test-platform/actions/workflows/deploy-pages.yml)
 
-🌐 **線上互動展示平台 (Live Interactive Demo)：[https://liu88219.github.io/api-test-platform/](https://liu88219.github.io/api-test-platform/)**
+🌐 **線上互動展示平台 (Live Interactive Demo)：[https://liu88219.github.io/api-test-platform/](https://liu88219.github.io/api-test-platform/)**  
+📊 **每日自動化測試週期紀錄總表 (Daily QA Ledger)：[`reports/DAILY_TEST_LEDGER.md`](reports/DAILY_TEST_LEDGER.md)**  
+📋 **測試策略與 8 大場景設計矩陣 (Test Strategy)：[`docs/TEST_STRATEGY.md`](docs/TEST_STRATEGY.md)**
 
 > **QA / SDET Portfolio Flagship Project**  
 > 一套基於 **Python (FastAPI 架構) + Web Console + SQLite** 打造的生產級 **API 自動化測試與多步驟場景編排平台**。支援跨步驟動態變數提取（JSONPath $\rightarrow$ `{{variable}}`）、多維度自動化斷言引擎、CI/CD 命令列品質守門員（Quality Gate），以及內建的**靶機故障模擬器（Chaos Bug Simulator）**與**自動化 QA 根因診斷（Failure Triage）**。

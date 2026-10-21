@@ -390,6 +390,436 @@ def _seed_default_data(conn: sqlite3.Connection) -> None:
             ),
         )
 
+    # 5. Seed Scenario 4: Payment Idempotency & Duplicate Checkout Guard
+    cur.execute(
+        """
+        INSERT INTO scenarios (name, description, environment_id, tags_json, fail_fast, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "💳 金流冪等性與防重複扣款測試 (Idempotency & Duplicate Checkout Guard)",
+            "模擬使用者連點兩次結帳按鈕，驗證首次結帳成功 (201) 後，同一購物車二次重複結帳必須攔截回傳 409 DUPLICATE_CHECKOUT。",
+            env_local_id,
+            json.dumps(["Idempotency", "Payment-Safety", "P0-Critical"]),
+            1,
+            now,
+        ),
+    )
+    s4_id = cur.lastrowid
+
+    s4_steps = [
+        {
+            "step_order": 1,
+            "name": "Step 1: 登入取得合法 Bearer Token",
+            "method": "POST",
+            "path": "/mock/auth/login",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"username": "{{test_user}}", "password": "{{test_pass}}"},
+            "extractions": [{"var_name": "idem_token", "jsonpath": "$.data.token"}],
+            "assertions": [{"type": "status_code", "operator": "eq", "expected": 200}],
+        },
+        {
+            "step_order": 2,
+            "name": "Step 2: 建立待結帳購物車並提取 Cart ID",
+            "method": "POST",
+            "path": "/mock/cart/items",
+            "headers": {"Authorization": "Bearer {{idem_token}}"},
+            "body": {"product_id": "PROD-101", "quantity": 1},
+            "extractions": [{"var_name": "idem_cart_id", "jsonpath": "$.data.cart_id"}],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 200},
+                {"type": "jsonpath", "path": "$.data.cart_id", "operator": "not_empty", "expected": ""},
+            ],
+        },
+        {
+            "step_order": 3,
+            "name": "Step 3: 首次提交結帳請求應成功扣款 (201 Created)",
+            "method": "POST",
+            "path": "/mock/orders/checkout",
+            "headers": {"Authorization": "Bearer {{idem_token}}"},
+            "body": {"cart_id": "{{idem_cart_id}}", "payment_method": "CREDIT_CARD"},
+            "extractions": [{"var_name": "first_order_id", "jsonpath": "$.data.order.order_id"}],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 201},
+                {"type": "jsonpath", "path": "$.data.order.status", "operator": "eq", "expected": "PAID"},
+            ],
+        },
+        {
+            "step_order": 4,
+            "name": "Step 4: 重複提交同一購物車結帳應觸發冪等攔截 (409 Conflict)",
+            "method": "POST",
+            "path": "/mock/orders/checkout",
+            "headers": {"Authorization": "Bearer {{idem_token}}"},
+            "body": {"cart_id": "{{idem_cart_id}}", "payment_method": "CREDIT_CARD"},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 409},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "DUPLICATE_CHECKOUT"},
+            ],
+        },
+    ]
+
+    for step in s4_steps:
+        cur.execute(
+            """
+            INSERT INTO scenario_steps
+            (scenario_id, step_order, name, method, path, headers_json, body_json, extractions_json, assertions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                s4_id,
+                step["step_order"],
+                step["name"],
+                step["method"],
+                step["path"],
+                json.dumps(step["headers"]),
+                json.dumps(step["body"]),
+                json.dumps(step["extractions"]),
+                json.dumps(step["assertions"]),
+            ),
+        )
+
+    # 6. Seed Scenario 5: Inventory Overselling & Full Boundary Value Analysis (BVA)
+    cur.execute(
+        """
+        INSERT INTO scenarios (name, description, environment_id, tags_json, fail_fast, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "📦 庫存超賣防護與完整邊界值分析 (Inventory Overselling & Full BVA)",
+            "依據邊界值分析法 (BVA) 驗證零值 (0)、超出單筆上限 (100)、以及超過商品實際庫存量 (50 > 42) 的防超賣攔截。",
+            env_local_id,
+            json.dumps(["Boundary-BVA", "Inventory-Guard", "P1"]),
+            0,
+            now,
+        ),
+    )
+    s5_id = cur.lastrowid
+
+    s5_steps = [
+        {
+            "step_order": 1,
+            "name": "Step 1: 零值邊界測試 (quantity = 0) 應攔截回傳 400",
+            "method": "POST",
+            "path": "/mock/cart/items",
+            "headers": {"Authorization": "Bearer tok_bva_tester"},
+            "body": {"product_id": "PROD-101", "quantity": 0},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 400},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "INVALID_QUANTITY"},
+            ],
+        },
+        {
+            "step_order": 2,
+            "name": "Step 2: 單筆上限邊界測試 (quantity = 100 > 99) 應攔截回傳 400",
+            "method": "POST",
+            "path": "/mock/cart/items",
+            "headers": {"Authorization": "Bearer tok_bva_tester"},
+            "body": {"product_id": "PROD-101", "quantity": 100},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 400},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "INVALID_QUANTITY"},
+            ],
+        },
+        {
+            "step_order": 3,
+            "name": "Step 3: 庫存超賣防護測試 (購買 50 件 > 現貨 42 件) 應回傳 409",
+            "method": "POST",
+            "path": "/mock/cart/items",
+            "headers": {"Authorization": "Bearer tok_bva_tester"},
+            "body": {"product_id": "PROD-101", "quantity": 50},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 409},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "INSUFFICIENT_STOCK"},
+                {"type": "jsonpath", "path": "$.error.available_stock", "operator": "eq", "expected": 42},
+            ],
+        },
+    ]
+
+    for step in s5_steps:
+        cur.execute(
+            """
+            INSERT INTO scenario_steps
+            (scenario_id, step_order, name, method, path, headers_json, body_json, extractions_json, assertions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                s5_id,
+                step["step_order"],
+                step["name"],
+                step["method"],
+                step["path"],
+                json.dumps(step["headers"]),
+                json.dumps(step["body"]),
+                json.dumps(step["extractions"]),
+                json.dumps(step["assertions"]),
+            ),
+        )
+
+    # 7. Seed Scenario 6: Coupon & Pricing Decision Matrix
+    cur.execute(
+        """
+        INSERT INTO scenarios (name, description, environment_id, tags_json, fail_fast, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "🎟️ 優惠券折抵與計價邏輯決策表 (Coupon & Pricing Decision Matrix)",
+            "運用決策表測試法驗證有效折扣碼 (VIP200 折抵 200 元)、過期折扣碼 (EXPIRED2020) 與偽造折扣碼 (FAKE999)。",
+            env_local_id,
+            json.dumps(["Decision-Table", "Pricing", "P1"]),
+            0,
+            now,
+        ),
+    )
+    s6_id = cur.lastrowid
+
+    s6_steps = [
+        {
+            "step_order": 1,
+            "name": "Step 1: 建立購物車 (原價 2598 元)",
+            "method": "POST",
+            "path": "/mock/cart/items",
+            "headers": {"Authorization": "Bearer tok_coupon_tester"},
+            "body": {"product_id": "PROD-101", "quantity": 2},
+            "extractions": [{"var_name": "coupon_cart_id", "jsonpath": "$.data.cart_id"}],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 200},
+                {"type": "jsonpath", "path": "$.data.cart_total", "operator": "eq", "expected": 2598},
+            ],
+        },
+        {
+            "step_order": 2,
+            "name": "Step 2: 套用有效優惠碼 VIP200 應折抵 200 元 (實付 2398 元)",
+            "method": "POST",
+            "path": "/mock/orders/checkout",
+            "headers": {"Authorization": "Bearer tok_coupon_tester"},
+            "body": {"cart_id": "{{coupon_cart_id}}", "coupon_code": "VIP200"},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 201},
+                {"type": "jsonpath", "path": "$.data.order.discount_amount", "operator": "eq", "expected": 200},
+                {"type": "jsonpath", "path": "$.data.order.charged_amount", "operator": "eq", "expected": 2398},
+            ],
+        },
+        {
+            "step_order": 3,
+            "name": "Step 3: 套用過期優惠碼 EXPIRED2020 應攔截回傳 400",
+            "method": "POST",
+            "path": "/mock/orders/checkout",
+            "headers": {"Authorization": "Bearer tok_coupon_tester"},
+            "body": {"cart_id": "{{coupon_cart_id}}", "coupon_code": "EXPIRED2020"},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 400},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "COUPON_EXPIRED"},
+            ],
+        },
+        {
+            "step_order": 4,
+            "name": "Step 4: 套用不存在的偽造優惠碼 FAKE999 應攔截回傳 400",
+            "method": "POST",
+            "path": "/mock/orders/checkout",
+            "headers": {"Authorization": "Bearer tok_coupon_tester"},
+            "body": {"cart_id": "{{coupon_cart_id}}", "coupon_code": "FAKE999"},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 400},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "INVALID_COUPON"},
+            ],
+        },
+    ]
+
+    for step in s6_steps:
+        cur.execute(
+            """
+            INSERT INTO scenario_steps
+            (scenario_id, step_order, name, method, path, headers_json, body_json, extractions_json, assertions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                s6_id,
+                step["step_order"],
+                step["name"],
+                step["method"],
+                step["path"],
+                json.dumps(step["headers"]),
+                json.dumps(step["body"]),
+                json.dumps(step["extractions"]),
+                json.dumps(step["assertions"]),
+            ),
+        )
+
+    # 8. Seed Scenario 7: OWASP API Security (BOLA & RBAC Authorization Guard)
+    cur.execute(
+        """
+        INSERT INTO scenarios (name, description, environment_id, tags_json, fail_fast, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "🔐 越權存取與角色權限防護 (OWASP API Security: BOLA & RBAC)",
+            "驗證錯誤密碼登入攔截 (401)、買家垂直越權呼叫管理員刪商品 API (403 ADMIN_ONLY)、以及水平越權偷看他人訂單 (403 BOLA)。",
+            env_local_id,
+            json.dumps(["OWASP-Security", "BOLA-RBAC", "P0-Critical"]),
+            0,
+            now,
+        ),
+    )
+    s7_id = cur.lastrowid
+
+    s7_steps = [
+        {
+            "step_order": 1,
+            "name": "Step 1: 輸入錯誤密碼登入應拒絕發放 Token (401 Unauthorized)",
+            "method": "POST",
+            "path": "/mock/auth/login",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"username": "{{test_user}}", "password": "wrong_password_123"},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 401},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "INVALID_CREDENTIALS"},
+            ],
+        },
+        {
+            "step_order": 2,
+            "name": "Step 2: 垂直越權測試 (RBAC) — 一般買家呼叫管理員刪除商品 API 應回傳 403",
+            "method": "DELETE",
+            "path": "/mock/admin/products/PROD-101",
+            "headers": {"Authorization": "Bearer tok_buyer_role"},
+            "body": {},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 403},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "ADMIN_ONLY"},
+            ],
+        },
+        {
+            "step_order": 3,
+            "name": "Step 3: 水平越權測試 (BOLA) — 嘗試讀取其他買家的私密訂單應回傳 403",
+            "method": "GET",
+            "path": "/mock/orders/ORD-OTHER-999",
+            "headers": {"Authorization": "Bearer tok_buyer_role"},
+            "body": {},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 403},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "FORBIDDEN_ORDER_ACCESS"},
+            ],
+        },
+    ]
+
+    for step in s7_steps:
+        cur.execute(
+            """
+            INSERT INTO scenario_steps
+            (scenario_id, step_order, name, method, path, headers_json, body_json, extractions_json, assertions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                s7_id,
+                step["step_order"],
+                step["name"],
+                step["method"],
+                step["path"],
+                json.dumps(step["headers"]),
+                json.dumps(step["body"]),
+                json.dumps(step["extractions"]),
+                json.dumps(step["assertions"]),
+            ),
+        )
+
+    # 9. Seed Scenario 8: Order State Machine Lifecycle Transition
+    cur.execute(
+        """
+        INSERT INTO scenarios (name, description, environment_id, tags_json, fail_fast, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "🔄 訂單狀態機生命週期測試 (Order State Machine Transition)",
+            "依據狀態轉換測試法驗證訂單由「已付款 (PAID) → 申請退款 (REFUNDED) → 禁止二次重複退款 (409 ORDER_ALREADY_REFUNDED)」。",
+            env_local_id,
+            json.dumps(["State-Machine", "Order-Lifecycle", "P1"]),
+            1,
+            now,
+        ),
+    )
+    s8_id = cur.lastrowid
+
+    s8_steps = [
+        {
+            "step_order": 1,
+            "name": "Step 1: 建立待測試購物車",
+            "method": "POST",
+            "path": "/mock/cart/items",
+            "headers": {"Authorization": "Bearer tok_state_tester"},
+            "body": {"product_id": "PROD-101", "quantity": 1},
+            "extractions": [{"var_name": "state_cart_id", "jsonpath": "$.data.cart_id"}],
+            "assertions": [{"type": "status_code", "operator": "eq", "expected": 200}],
+        },
+        {
+            "step_order": 2,
+            "name": "Step 2: 結帳建立新訂單 (初始狀態 PAID)",
+            "method": "POST",
+            "path": "/mock/orders/checkout",
+            "headers": {"Authorization": "Bearer tok_state_tester"},
+            "body": {"cart_id": "{{state_cart_id}}"},
+            "extractions": [{"var_name": "state_order_id", "jsonpath": "$.data.order.order_id"}],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 201},
+                {"type": "jsonpath", "path": "$.data.order.status", "operator": "eq", "expected": "PAID"},
+            ],
+        },
+        {
+            "step_order": 3,
+            "name": "Step 3: 首次申請取消退款，狀態應轉換為 REFUNDED (200 OK)",
+            "method": "POST",
+            "path": "/mock/orders/{{state_order_id}}/refund",
+            "headers": {"Authorization": "Bearer tok_state_tester"},
+            "body": {"reason": "Customer requested cancellation"},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 200},
+                {"type": "jsonpath", "path": "$.data.order.status", "operator": "eq", "expected": "REFUNDED"},
+            ],
+        },
+        {
+            "step_order": 4,
+            "name": "Step 4: 對已退款訂單再次呼叫退款，應攔截非法狀態轉換 (409 Conflict)",
+            "method": "POST",
+            "path": "/mock/orders/{{state_order_id}}/refund",
+            "headers": {"Authorization": "Bearer tok_state_tester"},
+            "body": {"reason": "Duplicate refund attempt"},
+            "extractions": [],
+            "assertions": [
+                {"type": "status_code", "operator": "eq", "expected": 409},
+                {"type": "jsonpath", "path": "$.error.code", "operator": "eq", "expected": "ORDER_ALREADY_REFUNDED"},
+            ],
+        },
+    ]
+
+    for step in s8_steps:
+        cur.execute(
+            """
+            INSERT INTO scenario_steps
+            (scenario_id, step_order, name, method, path, headers_json, body_json, extractions_json, assertions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                s8_id,
+                step["step_order"],
+                step["name"],
+                step["method"],
+                step["path"],
+                json.dumps(step["headers"]),
+                json.dumps(step["body"]),
+                json.dumps(step["extractions"]),
+                json.dumps(step["assertions"]),
+            ),
+        )
+
 
 def list_environments() -> list[dict[str, Any]]:
     conn = get_connection()

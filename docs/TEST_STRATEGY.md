@@ -1,40 +1,26 @@
 # 📋 Test Strategy & Test Case Design Matrix (測試策略與案例設計文件)
 
-本文件展示 **PulseAPI 自動化測試平台** 針對電商核心交易鏈路（E-Commerce Checkout API）所制定的測試策略、測試設計方法論（等價劃分與邊界值分析），以及自動化斷言規範。
+本文件展示 **PulseAPI 自動化測試平台** 針對電商核心交易與金流微服務所制定的 **8 大自動化測試場景（共 27 個 API 步驟、60 條斷言規則）**，涵蓋正向 E2E 鏈路、邊界值分析（BVA）、決策表測試（Decision Table）、狀態機轉換（State Transition）、金流冪等性防呆（Idempotency）與 OWASP API 資安防護（BOLA & RBAC）。
 
 ---
 
-## 1. 測試範圍與優先級分層 (Test Scope & Risk-Based Prioritization)
+## 1. 八大自動化測試場景總覽 (8 Automated Test Suites Matrix)
 
-| 優先級 | 測試層級 | 涵蓋場景 | 觸發時機 | SLO / 品質門檻 |
-| :--- | :--- | :--- | :--- | :--- |
-| **P0 (Blocker)** | E2E 核心業務鏈路 | 登入認證 $\rightarrow$ 商品庫存檢查 $\rightarrow$ 加入購物車 $\rightarrow$ 訂單結帳扣款 | 每次 PR + 部署前 Gate | 通過率 `100%`、單步回應 `< 500ms` |
-| **P1 (Critical)** | 權限防護與邊界負向測試 | 未帶 Token 存取攔截 (`401`)、非法負數購買量 (`400`)、不存在商品 (`404`) | 每次 PR + 每日定時巡檢 | 錯誤碼與契約格式 `100%` 符合規範 |
-| **P2 (Major)** | 服務健康與效能 SLA 監控 | `/mock/health` 與 `/mock/products` 高頻探針 | 每小時排程 (Cron) | 回應時間 `< 200ms` |
-
----
-
-## 2. 測試案例設計矩陣 (Equivalence Partitioning & Boundary Value Analysis)
-
-以 **`POST /mock/cart/items`（加入購物車 API）** 為例：
-
-| 測試編號 | 測試設計方法 | 輸入條件 (`product_id`, `quantity`, `Authorization`) | 預期 HTTP 狀態碼 | 預期 JSONPath 斷言結果 |
-| :--- | :--- | :--- | :--- | :--- |
-| **TC-CART-01** | 有效等價類 (Happy Path) | `PROD-101`, `quantity = 2`, 有效 Bearer Token | `200 OK` | `$.data.cart_total == 2598` |
-| **TC-CART-02** | 邊界值分析 (下界 0 / 負數) | `PROD-101`, `quantity = -5`, 有效 Bearer Token | `400 Bad Request` | `$.error.code == "INVALID_QUANTITY"` |
-| **TC-CART-03** | 邊界值分析 (超出上限 > 99) | `PROD-101`, `quantity = 100`, 有效 Bearer Token | `400 Bad Request` | `$.error.code == "INVALID_QUANTITY"` |
-| **TC-CART-04** | 安全性負向測試 (Auth 缺失) | `PROD-101`, `quantity = 1`, 無 Authorization Header | `401 Unauthorized` | `$.error.code == "UNAUTHORIZED"` |
-| **TC-CART-05** | 無效等價類 (資源不存在) | `PROD-99999`, `quantity = 1`, 有效 Bearer Token | `404 Not Found` | `$.error.code == "PRODUCT_NOT_FOUND"` |
+| 場景編號 | 場景名稱 | 測試設計方法論 | 步驟數 | 斷言數 | 驗證重點與預期行為 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **#1** | **🛒 電商金流完整下單鏈路** | E2E 業務鏈路 + 變數傳遞 | `4` | `12` | 登入取 Token $\rightarrow$ 查庫存 $\rightarrow$ 加購物車 $\rightarrow$ 結帳扣款 (`2598` 元) |
+| **#2** | **🔒 權限防護與邊界負向測試** | 負向測試 (Negative Testing) | `3` | `6` | 未帶 Token 攔截 (`401`)、負數數量 `-5` (`400`)、不存在商品 (`404`) |
+| **#3** | **⚡ 核心服務健康度與 SLA 巡檢** | 煙霧測試與效能 SLO | `2` | `6` | `/mock/health` 與商品目錄回應耗時 `< 200ms` |
+| **#4** | **💳 金流冪等性與防重複扣款測試** | 冪等性防護 (Idempotency) | `4` | `7` | 同一購物車首次結帳 `201 PAID`，二次重複提交攔截回傳 `409 DUPLICATE_CHECKOUT` |
+| **#5** | **📦 庫存超賣防護與完整邊界值分析** | 邊界值分析法 (Full BVA) | `3` | `7` | 零值 `0` (`400`)、超出上限 `100 > 99` (`400`)、超買 `50 > 現貨 42` (`409 INSUFFICIENT_STOCK`) |
+| **#6** | **🎟️ 優惠券折抵與計價邏輯決策表** | 決策表測試 (Decision Table) | `4` | `9` | 有效券 `VIP200` 折抵後 `2398` 元 (`201`)、過期券 (`400 COUPON_EXPIRED`)、偽造券 (`400 INVALID_COUPON`) |
+| **#7** | **🔐 越權存取與角色權限防護** | OWASP API Security (BOLA/RBAC) | `3` | `6` | 密碼錯誤 (`401`)、買家偷打管理員刪商品 API (`403 ADMIN_ONLY`)、跨帳號偷看他人訂單 (`403 BOLA`) |
+| **#8** | **🔄 訂單狀態機生命週期測試** | 狀態轉換測試 (State Machine) | `4` | `7` | 訂單建立 (`PAID`) $\rightarrow$ 首次退款 (`200 REFUNDED`) $\rightarrow$ 禁止二次重複退款 (`409 ORDER_ALREADY_REFUNDED`) |
 
 ---
 
-## 3. 故障注入與根因診斷驗證 (Chaos Engineering & Failure Triage)
+## 2. 週期巡檢紀錄與每日自動報表 (Periodic QA Execution Ledger)
 
-為了驗證測試平台具備真實的**缺陷攔截能力 (Defect Detection Effectiveness)**，平台內建兩種故障注入模式：
-
-1. **商業邏輯缺陷 (`pricing_bug`)**：
-   * **現象**：結帳 API 回傳 `201 Created`，但 `$.data.order.charged_amount` 錯誤多扣 `500` 元（應為 `2598`，實際回傳 `3098`）。
-   * **平台攔截表現**：若僅檢查 `status_code == 201` 會漏抓此嚴重金流 Bug；PulseAPI 透過跨步驟變數 `{{expected_total}}` 比對 `$.data.order.charged_amount`，精準攔截並輸出 `🔍 [資料斷言不符]` 根因診斷。
-2. **微服務崩潰 (`server_500_bug`)**：
-   * **現象**：結帳時金流資料庫連線池耗盡，回傳 `500 Internal Server Error`。
-   * **平台攔截表現**：自動識別為 `💥 [後端服務異常 5xx]`，區分出屬於後端環境異常而非測試腳本問題。
+每天由 GitHub Actions 定時排程執行全量 8 大測試場景，並自動將測試結果寫入：
+* 📊 **[`reports/DAILY_TEST_LEDGER.md`](../reports/DAILY_TEST_LEDGER.md)**：按時間軸留存每次執行的通過率、耗時與場景明細表。
+* 📋 **GitHub Actions Job Summary**：在每次 CI Workflow 頁面直接渲染視覺化 Markdown 測試報告。

@@ -195,24 +195,304 @@ const DEFAULT_STATIC_DB = {
         },
       ],
     },
+    {
+      id: 4,
+      name: "💳 金流冪等性與防重複扣款測試 (Idempotency & Duplicate Checkout Guard)",
+      description: "模擬使用者連點兩次結帳按鈕，驗證首次結帳成功 (201) 後，同一購物車二次重複結帳必須攔截回傳 409 DUPLICATE_CHECKOUT。",
+      environment_id: 1,
+      tags: ["Idempotency", "Payment-Safety", "P0-Critical"],
+      fail_fast: true,
+      steps: [
+        {
+          step_order: 1,
+          name: "Step 1: 登入取得合法 Bearer Token",
+          method: "POST",
+          path: "/mock/auth/login",
+          headers: { "Content-Type": "application/json" },
+          body: { username: "{{test_user}}", password: "{{test_pass}}" },
+          extractions: [{ var_name: "idem_token", jsonpath: "$.data.token" }],
+          assertions: [{ type: "status_code", operator: "eq", expected: 200 }],
+        },
+        {
+          step_order: 2,
+          name: "Step 2: 建立待結帳購物車並提取 Cart ID",
+          method: "POST",
+          path: "/mock/cart/items",
+          headers: { Authorization: "Bearer {{idem_token}}" },
+          body: { product_id: "PROD-101", quantity: 1 },
+          extractions: [{ var_name: "idem_cart_id", jsonpath: "$.data.cart_id" }],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 200 },
+            { type: "jsonpath", path: "$.data.cart_id", operator: "not_empty", expected: "" },
+          ],
+        },
+        {
+          step_order: 3,
+          name: "Step 3: 首次提交結帳請求應成功扣款 (201 Created)",
+          method: "POST",
+          path: "/mock/orders/checkout",
+          headers: { Authorization: "Bearer {{idem_token}}" },
+          body: { cart_id: "{{idem_cart_id}}", payment_method: "CREDIT_CARD" },
+          extractions: [{ var_name: "first_order_id", jsonpath: "$.data.order.order_id" }],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 201 },
+            { type: "jsonpath", path: "$.data.order.status", operator: "eq", expected: "PAID" },
+          ],
+        },
+        {
+          step_order: 4,
+          name: "Step 4: 重複提交同一購物車結帳應觸發冪等攔截 (409 Conflict)",
+          method: "POST",
+          path: "/mock/orders/checkout",
+          headers: { Authorization: "Bearer {{idem_token}}" },
+          body: { cart_id: "{{idem_cart_id}}", payment_method: "CREDIT_CARD" },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 409 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "DUPLICATE_CHECKOUT" },
+          ],
+        },
+      ],
+    },
+    {
+      id: 5,
+      name: "📦 庫存超賣防護與完整邊界值分析 (Inventory Overselling & Full BVA)",
+      description: "依據邊界值分析法 (BVA) 驗證零值 (0)、超出單筆上限 (100)、以及超過商品實際庫存量 (50 > 42) 的防超賣攔截。",
+      environment_id: 1,
+      tags: ["Boundary-BVA", "Inventory-Guard", "P1"],
+      fail_fast: false,
+      steps: [
+        {
+          step_order: 1,
+          name: "Step 1: 零值邊界測試 (quantity = 0) 應攔截回傳 400",
+          method: "POST",
+          path: "/mock/cart/items",
+          headers: { Authorization: "Bearer tok_bva_tester" },
+          body: { product_id: "PROD-101", quantity: 0 },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 400 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "INVALID_QUANTITY" },
+          ],
+        },
+        {
+          step_order: 2,
+          name: "Step 2: 單筆上限邊界測試 (quantity = 100 > 99) 應攔截回傳 400",
+          method: "POST",
+          path: "/mock/cart/items",
+          headers: { Authorization: "Bearer tok_bva_tester" },
+          body: { product_id: "PROD-101", quantity: 100 },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 400 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "INVALID_QUANTITY" },
+          ],
+        },
+        {
+          step_order: 3,
+          name: "Step 3: 庫存超賣防護測試 (購買 50 件 > 現貨 42 件) 應回傳 409",
+          method: "POST",
+          path: "/mock/cart/items",
+          headers: { Authorization: "Bearer tok_bva_tester" },
+          body: { product_id: "PROD-101", quantity: 50 },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 409 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "INSUFFICIENT_STOCK" },
+            { type: "jsonpath", path: "$.error.available_stock", operator: "eq", expected: 42 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 6,
+      name: "🎟️ 優惠券折抵與計價邏輯決策表 (Coupon & Pricing Decision Matrix)",
+      description: "運用決策表測試法驗證有效折扣碼 (VIP200 折抵 200 元)、過期折扣碼 (EXPIRED2020) 與偽造折扣碼 (FAKE999)。",
+      environment_id: 1,
+      tags: ["Decision-Table", "Pricing", "P1"],
+      fail_fast: false,
+      steps: [
+        {
+          step_order: 1,
+          name: "Step 1: 建立購物車 (原價 2598 元)",
+          method: "POST",
+          path: "/mock/cart/items",
+          headers: { Authorization: "Bearer tok_coupon_tester" },
+          body: { product_id: "PROD-101", quantity: 2 },
+          extractions: [{ var_name: "coupon_cart_id", jsonpath: "$.data.cart_id" }],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 200 },
+            { type: "jsonpath", path: "$.data.cart_total", operator: "eq", expected: 2598 },
+          ],
+        },
+        {
+          step_order: 2,
+          name: "Step 2: 套用有效優惠碼 VIP200 應折抵 200 元 (實付 2398 元)",
+          method: "POST",
+          path: "/mock/orders/checkout",
+          headers: { Authorization: "Bearer tok_coupon_tester" },
+          body: { cart_id: "{{coupon_cart_id}}", coupon_code: "VIP200" },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 201 },
+            { type: "jsonpath", path: "$.data.order.discount_amount", operator: "eq", expected: 200 },
+            { type: "jsonpath", path: "$.data.order.charged_amount", operator: "eq", expected: 2398 },
+          ],
+        },
+        {
+          step_order: 3,
+          name: "Step 3: 套用過期優惠碼 EXPIRED2020 應攔截回傳 400",
+          method: "POST",
+          path: "/mock/orders/checkout",
+          headers: { Authorization: "Bearer tok_coupon_tester" },
+          body: { cart_id: "{{coupon_cart_id}}", coupon_code: "EXPIRED2020" },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 400 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "COUPON_EXPIRED" },
+          ],
+        },
+        {
+          step_order: 4,
+          name: "Step 4: 套用不存在的偽造優惠碼 FAKE999 應攔截回傳 400",
+          method: "POST",
+          path: "/mock/orders/checkout",
+          headers: { Authorization: "Bearer tok_coupon_tester" },
+          body: { cart_id: "{{coupon_cart_id}}", coupon_code: "FAKE999" },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 400 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "INVALID_COUPON" },
+          ],
+        },
+      ],
+    },
+    {
+      id: 7,
+      name: "🔐 越權存取與角色權限防護 (OWASP API Security: BOLA & RBAC)",
+      description: "驗證錯誤密碼登入攔截 (401)、買家垂直越權呼叫管理員刪商品 API (403 ADMIN_ONLY)、以及水平越權偷看他人訂單 (403 BOLA)。",
+      environment_id: 1,
+      tags: ["OWASP-Security", "BOLA-RBAC", "P0-Critical"],
+      fail_fast: false,
+      steps: [
+        {
+          step_order: 1,
+          name: "Step 1: 輸入錯誤密碼登入應拒絕發放 Token (401 Unauthorized)",
+          method: "POST",
+          path: "/mock/auth/login",
+          headers: { "Content-Type": "application/json" },
+          body: { username: "{{test_user}}", password: "wrong_password_123" },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 401 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "INVALID_CREDENTIALS" },
+          ],
+        },
+        {
+          step_order: 2,
+          name: "Step 2: 垂直越權測試 (RBAC) — 一般買家呼叫管理員刪除商品 API 應回傳 403",
+          method: "DELETE",
+          path: "/mock/admin/products/PROD-101",
+          headers: { Authorization: "Bearer tok_buyer_role" },
+          body: {},
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 403 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "ADMIN_ONLY" },
+          ],
+        },
+        {
+          step_order: 3,
+          name: "Step 3: 水平越權測試 (BOLA) — 嘗試讀取其他買家的私密訂單應回傳 403",
+          method: "GET",
+          path: "/mock/orders/ORD-OTHER-999",
+          headers: { Authorization: "Bearer tok_buyer_role" },
+          body: {},
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 403 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "FORBIDDEN_ORDER_ACCESS" },
+          ],
+        },
+      ],
+    },
+    {
+      id: 8,
+      name: "🔄 訂單狀態機生命週期測試 (Order State Machine Transition)",
+      description: "依據狀態轉換測試法驗證訂單由「已付款 (PAID) → 申請退款 (REFUNDED) → 禁止二次重複退款 (409 ORDER_ALREADY_REFUNDED)」。",
+      environment_id: 1,
+      tags: ["State-Machine", "Order-Lifecycle", "P1"],
+      fail_fast: true,
+      steps: [
+        {
+          step_order: 1,
+          name: "Step 1: 建立待測試購物車",
+          method: "POST",
+          path: "/mock/cart/items",
+          headers: { Authorization: "Bearer tok_state_tester" },
+          body: { product_id: "PROD-101", quantity: 1 },
+          extractions: [{ var_name: "state_cart_id", jsonpath: "$.data.cart_id" }],
+          assertions: [{ type: "status_code", operator: "eq", expected: 200 }],
+        },
+        {
+          step_order: 2,
+          name: "Step 2: 結帳建立新訂單 (初始狀態 PAID)",
+          method: "POST",
+          path: "/mock/orders/checkout",
+          headers: { Authorization: "Bearer tok_state_tester" },
+          body: { cart_id: "{{state_cart_id}}" },
+          extractions: [{ var_name: "state_order_id", jsonpath: "$.data.order.order_id" }],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 201 },
+            { type: "jsonpath", path: "$.data.order.status", operator: "eq", expected: "PAID" },
+          ],
+        },
+        {
+          step_order: 3,
+          name: "Step 3: 首次申請取消退款，狀態應轉換為 REFUNDED (200 OK)",
+          method: "POST",
+          path: "/mock/orders/{{state_order_id}}/refund",
+          headers: { Authorization: "Bearer tok_state_tester" },
+          body: { reason: "Customer requested cancellation" },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 200 },
+            { type: "jsonpath", path: "$.data.order.status", operator: "eq", expected: "REFUNDED" },
+          ],
+        },
+        {
+          step_order: 4,
+          name: "Step 4: 對已退款訂單再次呼叫退款，應攔截非法狀態轉換 (409 Conflict)",
+          method: "POST",
+          path: "/mock/orders/{{state_order_id}}/refund",
+          headers: { Authorization: "Bearer tok_state_tester" },
+          body: { reason: "Duplicate refund attempt" },
+          extractions: [],
+          assertions: [
+            { type: "status_code", operator: "eq", expected: 409 },
+            { type: "jsonpath", path: "$.error.code", operator: "eq", expected: "ORDER_ALREADY_REFUNDED" },
+          ],
+        },
+      ],
+    },
   ],
   runs: [],
 };
 
 function getStaticStore() {
-  const raw = localStorage.getItem("pulseapi_store_v1");
+  const raw = localStorage.getItem("pulseapi_store_v2");
   if (raw) {
     try {
       return JSON.parse(raw);
     } catch (_) {}
   }
   const copy = JSON.parse(JSON.stringify(DEFAULT_STATIC_DB));
-  localStorage.setItem("pulseapi_store_v1", JSON.stringify(copy));
+  localStorage.setItem("pulseapi_store_v2", JSON.stringify(copy));
   return copy;
 }
 
 function saveStaticStore(store) {
-  localStorage.setItem("pulseapi_store_v1", JSON.stringify(store));
+  localStorage.setItem("pulseapi_store_v2", JSON.stringify(store));
 }
 
 function renderTemplateJS(val, ctx) {
@@ -268,6 +548,9 @@ async function runScenarioInBrowser(store, sc) {
   let totalMs = 0;
   let diagnosis = "";
 
+  const checkedOutCarts = new Set();
+  const refundedOrders = new Set();
+
   for (let i = 0; i < sc.steps.length; i++) {
     const step = sc.steps[i];
     const method = (step.method || "GET").toUpperCase();
@@ -288,11 +571,19 @@ async function runScenarioInBrowser(store, sc) {
         statusCode = 200;
         respJson = { status: "healthy", chaos_mode: store.chaos.mode };
       } else if (path === "/mock/auth/login") {
-        statusCode = 200;
-        respJson = {
-          success: true,
-          data: { token: "tok_ghpages_98a1f", user: { id: "USR-8801", role: "VIP_BUYER" } },
-        };
+        if (!body.username || body.password !== "qa_secret_2026") {
+          statusCode = 401;
+          respJson = { success: false, error: { code: "INVALID_CREDENTIALS" } };
+        } else {
+          statusCode = 200;
+          respJson = {
+            success: true,
+            data: { token: "tok_ghpages_98a1f", user: { id: "USR-8801", role: "VIP_BUYER" } },
+          };
+        }
+      } else if (method === "DELETE" && path.startsWith("/mock/admin/products/")) {
+        statusCode = 403;
+        respJson = { success: false, error: { code: "ADMIN_ONLY" } };
       } else if (path === "/mock/products") {
         statusCode = 200;
         respJson = {
@@ -308,20 +599,27 @@ async function runScenarioInBrowser(store, sc) {
         statusCode = 404;
         respJson = { success: false, error: { code: "PRODUCT_NOT_FOUND" } };
       } else if (path === "/mock/cart/items") {
+        const qty = Number(body.quantity);
         if (!authHeader.startsWith("Bearer ")) {
           statusCode = 401;
           respJson = { success: false, error: { code: "UNAUTHORIZED" } };
-        } else if (Number(body.quantity) <= 0) {
+        } else if (qty <= 0 || qty > 99) {
           statusCode = 400;
           respJson = { success: false, error: { code: "INVALID_QUANTITY" } };
+        } else if (qty > 42) {
+          statusCode = 409;
+          respJson = { success: false, error: { code: "INSUFFICIENT_STOCK", available_stock: 42 } };
         } else {
           statusCode = 200;
+          const cid = `CART-${Math.random().toString(16).slice(2, 8).toUpperCase()}`;
           respJson = {
             success: true,
-            data: { cart_id: "CART-88A1", product_id: body.product_id, quantity: body.quantity, cart_total: 2598 },
+            data: { cart_id: cid, product_id: body.product_id, quantity: qty, cart_total: 1299 * qty },
           };
         }
       } else if (path === "/mock/orders/checkout") {
+        const cid = String(body.cart_id || "");
+        const coupon = String(body.coupon_code || "");
         if (!authHeader.startsWith("Bearer ")) {
           statusCode = 401;
           respJson = { success: false, error: { code: "UNAUTHORIZED" } };
@@ -331,14 +629,40 @@ async function runScenarioInBrowser(store, sc) {
             success: false,
             error: { code: "PAYMENT_GATEWAY_CRASH", message: "Database connection pool exhausted" },
           };
+        } else if (cid && !coupon && checkedOutCarts.has(cid)) {
+          statusCode = 409;
+          respJson = { success: false, error: { code: "DUPLICATE_CHECKOUT" } };
+        } else if (coupon === "EXPIRED2020") {
+          statusCode = 400;
+          respJson = { success: false, error: { code: "COUPON_EXPIRED" } };
+        } else if (coupon && coupon !== "VIP200") {
+          statusCode = 400;
+          respJson = { success: false, error: { code: "INVALID_COUPON" } };
         } else {
           statusCode = 201;
-          const amount = store.chaos.mode === "pricing_bug" ? 3098 : 2598;
+          if (cid && !coupon) checkedOutCarts.add(cid);
+          const discount = coupon === "VIP200" ? 200 : 0;
+          let amount = 2598 - discount;
+          if (store.chaos.mode === "pricing_bug") amount += 500;
+          const oid = `ORD-${Math.random().toString(16).slice(2, 8).toUpperCase()}`;
           respJson = {
             success: true,
-            data: { order: { order_id: "ORD-99201", status: "PAID", charged_amount: amount } },
+            data: { order: { order_id: oid, status: "PAID", discount_amount: discount, charged_amount: amount } },
           };
         }
+      } else if (method === "POST" && path.startsWith("/mock/orders/") && path.endsWith("/refund")) {
+        const oid = path.split("/mock/orders/")[1].replace("/refund", "");
+        if (refundedOrders.has(oid)) {
+          statusCode = 409;
+          respJson = { success: false, error: { code: "ORDER_ALREADY_REFUNDED" } };
+        } else {
+          refundedOrders.add(oid);
+          statusCode = 200;
+          respJson = { success: true, data: { order: { order_id: oid, status: "REFUNDED" } } };
+        }
+      } else if (method === "GET" && path.startsWith("/mock/orders/")) {
+        statusCode = 403;
+        respJson = { success: false, error: { code: "FORBIDDEN_ORDER_ACCESS" } };
       }
       elapsedMs = Math.max(0.04, Number((performance.now() - t0).toFixed(2)));
     } else {

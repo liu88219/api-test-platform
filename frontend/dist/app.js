@@ -1142,7 +1142,7 @@ function renderScenarioDetail() {
     <div class="env-context-bar">
       <div>
         <strong>目標環境：</strong> <span>${escapeHtml(sc.environment_name)}</span>
-        <code style="margin-left:8px; color:#0284c7;">${escapeHtml(sc.base_url)}</code>
+        <code style="margin-left:8px; color:#8A5A32;">${escapeHtml(sc.base_url)}</code>
       </div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
         <span class="text-muted">初始環境變數：</span>

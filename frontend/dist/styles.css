@@ -1,36 +1,36 @@
 :root {
-  --bg-page: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-subtle: #f1f5f9;
-  --bg-code: #0f172a;
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #64748b;
-  --border-color: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --bg-page: #ECE8DF;
+  --bg-surface: #FAF8F3;
+  --bg-subtle: #EFECE4;
+  --bg-code: #28211B;
+  --text-primary: #2D251E;
+  --text-secondary: #5C5044;
+  --text-muted: #8A7E70;
+  --border-color: #DDD7C9;
+  --border-strong: #CFC7B6;
 
-  --brand-primary: #0284c7;
-  --brand-primary-hover: #0369a1;
-  --brand-surface: #e0f2fe;
+  --brand-primary: #C48E63;
+  --brand-primary-hover: #B27B50;
+  --brand-surface: #F6E6B8;
 
-  --pass-color: #059669;
-  --pass-bg: #ecfdf5;
-  --pass-border: #a7f3d0;
+  --pass-color: #487353;
+  --pass-bg: #EBF3ED;
+  --pass-border: #C3DEC8;
 
-  --fail-color: #dc2626;
-  --fail-bg: #fef2f2;
-  --fail-border: #fecaca;
+  --fail-color: #C44A40;
+  --fail-bg: #FCECEB;
+  --fail-border: #F5C6C2;
 
-  --warn-color: #d97706;
-  --warn-bg: #fffbeb;
-  --warn-border: #fde68a;
+  --warn-color: #B8732A;
+  --warn-bg: #FBF1DF;
+  --warn-border: #F0D7A7;
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Quicksand', 'Zen Maru Gothic', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
-  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08);
-  --radius-md: 8px;
-  --radius-lg: 10px;
+  --shadow-sm: 0 6px 20px -6px rgba(60, 48, 36, 0.06);
+  --shadow-md: 0 12px 28px -6px rgba(60, 48, 36, 0.10);
+  --radius-md: 14px;
+  --radius-lg: 22px;
 }
 
 * {
@@ -79,16 +79,14 @@ code, pre, .mono {
 }
 
 .brand-logo {
-  width: 42px;
-  height: 42px;
-  border-radius: 9px;
-  background: #0f172a;
-  color: #38bdf8;
+  width: 52px;
+  height: 44px;
+  border-radius: 14px;
+  background: #DEDBD1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .brand-title {
@@ -100,11 +98,11 @@ code, pre, .mono {
 
 .brand-sub {
   font-size: 12px;
-  font-weight: 600;
-  color: var(--brand-primary);
-  background: var(--brand-surface);
-  padding: 3px 8px;
-  border-radius: 5px;
+  font-weight: 700;
+  color: #2D251E;
+  background: #F2CA62;
+  padding: 3px 10px;
+  border-radius: 999px;
   margin-left: 8px;
   vertical-align: middle;
 }
@@ -176,21 +174,23 @@ code, pre, .mono {
 }
 
 .btn-primary {
-  background: var(--brand-primary);
-  color: #ffffff;
+  background: #F2CA62;
+  color: #2D251E;
+  box-shadow: 0 3px 0 rgba(140, 104, 24, 0.18);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--brand-primary-hover);
+  background: #E7BD52;
 }
 
 .btn-secondary {
-  background: #0f172a;
-  color: #ffffff;
+  background: #C48E63;
+  color: #FFFDF9;
+  box-shadow: 0 3px 0 rgba(30, 24, 20, 0.14);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #1e293b;
+  background: #B27B50;
 }
 
 .btn-ghost {
@@ -350,13 +350,13 @@ code, pre, .mono {
 .scenario-item:hover,
 .run-history-item:hover {
   border-color: var(--brand-primary);
-  background: #f8fafc;
+  background: #F4F1EA;
 }
 
 .scenario-item.selected,
 .run-history-item.selected {
   border-color: var(--brand-primary);
-  background: #f0f9ff;
+  background: #FBF5E6;
   box-shadow: 0 0 0 1px var(--brand-primary);
 }
 
@@ -478,8 +478,8 @@ code, pre, .mono {
   background: var(--bg-surface);
   border: 1px solid var(--border-strong);
   padding: 2px 8px;
-  border-radius: 4px;
-  color: #0369a1;
+  border-radius: 6px;
+  color: #8A5A32;
 }
 
 /* Step Pipeline Cards */
@@ -493,7 +493,7 @@ code, pre, .mono {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 16px;
-  background: #ffffff;
+  background: #FAF8F3;
   position: relative;
 }
 
@@ -516,10 +516,10 @@ code, pre, .mono {
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
-  background: #0f172a;
-  color: #fff;
+  background: #1E3158;
+  color: #FAF8F3;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 .method-badge {
@@ -754,12 +754,12 @@ code, pre, .mono {
 }
 
 .toast {
-  background: #0f172a;
-  color: #ffffff;
+  background: #2D251E;
+  color: #FAF8F3;
   padding: 12px 18px;
   border-radius: var(--radius-md);
   font-size: 13.5px;
-  font-weight: 500;
+  font-weight: 600;
   box-shadow: var(--shadow-md);
 }
 

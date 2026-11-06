@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <filter id="crayon" x="-12%" y="-12%" width="124%" height="124%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.085" numOctaves="3" seed="14" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#F2CA62"/>
+  <g filter="url(#crayon)">
+    <!-- Quokka (Left: solid caramel fur + denim overalls + black paws/feet, NO outlines, NO blush) -->
+    <circle cx="30" cy="33" r="8.8" fill="#C48E63"/>
+    <circle cx="56" cy="33" r="8.8" fill="#C48E63"/>
+    <path d="M22 52 C21 36, 29 29, 43 29 C57 29, 65 36, 64 52 C66 66, 62 76, 43 76 C24 76, 20 66, 22 52 Z" fill="#C48E63"/>
+    <ellipse cx="43" cy="89" rx="21" ry="20" fill="#C48E63"/>
+    <!-- Denim Overalls (#2C4268) -->
+    <path d="M23 82 Q43 85 63 82 L64 104 Q43 109 22 104 Z" fill="#2C4268"/>
+    <rect x="30" y="70" width="5.5" height="15" rx="2" fill="#2C4268"/>
+    <rect x="50.5" y="70" width="5.5" height="15" rx="2" fill="#2C4268"/>
+    <rect x="30" y="78" width="26" height="12" rx="3" fill="#2C4268"/>
+    <!-- Arms & Black Paws -->
+    <ellipse cx="21" cy="84" rx="5.5" ry="9" transform="rotate(24 21 84)" fill="#C48E63"/>
+    <circle cx="18.5" cy="90.5" r="3.6" fill="#14110F"/>
+    <ellipse cx="64" cy="82" rx="5.5" ry="9" transform="rotate(-28 64 82)" fill="#C48E63"/>
+    <circle cx="67.5" cy="87.5" r="3.6" fill="#14110F"/>
+    <!-- Black Flat Feet -->
+    <ellipse cx="31" cy="108" rx="7.5" ry="3.2" fill="#14110F"/>
+    <ellipse cx="55" cy="108" rx="7.5" ry="3.2" fill="#14110F"/>
+
+    <!-- Stacked Marshmallows (Marsh) in Center -->
+    <rect x="66.5" y="96" width="10" height="11" rx="3" fill="#FFFFFF"/>
+    <rect x="67.5" y="85" width="9.5" height="10.5" rx="3" transform="rotate(-5 72 90)" fill="#FFFFFF"/>
+
+    <!-- BOBO (Right: pure snow-white gummy bear silhouette, NO outlines, NO blush) -->
+    <circle cx="85" cy="52" r="6.5" fill="#FFFFFF"/>
+    <circle cx="109" cy="52" r="6.5" fill="#FFFFFF"/>
+    <ellipse cx="97" cy="67" rx="17.5" ry="15" fill="#FFFFFF"/>
+    <path d="M79 88 C78 74, 85 71, 97 71 C109 71, 116 74, 115 88 C115 101, 110 108, 103 108 C100 108, 99 103, 97 103 C95 103, 94 108, 91 108 C84 108, 79 101, 79 88 Z" fill="#FFFFFF"/>
+    <ellipse cx="79" cy="80" rx="7" ry="4.8" transform="rotate(-28 79 80)" fill="#FFFFFF"/>
+    <ellipse cx="114" cy="79" rx="7" ry="4.8" transform="rotate(28 114 79)" fill="#FFFFFF"/>
+  </g>
+
+  <ellipse cx="37.5" cy="46.5" rx="2" ry="2.5" fill="#14110F"/>
+  <ellipse cx="48.5" cy="46.5" rx="2" ry="2.5" fill="#14110F"/>
+  <ellipse cx="43" cy="53.5" rx="3.4" ry="4.6" fill="#14110F"/>
+  <path d="M38.5 60.5 C38.5 59.5, 47.5 59.5, 47.5 60.5 C47.5 66.5, 38.5 66.5, 38.5 60.5 Z" fill="#14110F"/>
+  <ellipse cx="43" cy="64.2" rx="2.7" ry="1.4" fill="#E37A70"/>
+  <circle cx="33" cy="81" r="1.5" fill="#F2CA62"/>
+  <circle cx="53" cy="81" r="1.5" fill="#F2CA62"/>
+
+  <ellipse cx="93" cy="64" rx="1.6" ry="2" fill="#14110F"/>
+  <ellipse cx="101" cy="64" rx="1.6" ry="2" fill="#14110F"/>
+  <ellipse cx="97" cy="68" rx="2" ry="1.5" fill="#14110F"/>
+  <path d="M97 69 L97 71.2 M92.8 70.8 Q94.9 73.6 97 71 Q99.1 73.6 101.2 70.8" fill="none" stroke="#14110F" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M113 42 L118 37 M117 48 L122 46 M73 43 L69 38" stroke="#FFF9E6" stroke-width="2.2" stroke-linecap="round"/>
+</svg>
